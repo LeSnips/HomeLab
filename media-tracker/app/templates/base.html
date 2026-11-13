@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Myutaku Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="brand">
+        <span class="brand-icon">💜</span>
+        <span class="brand-text">Myutaku</span>
+      </div>
+      <button class="toggle-btn" id="toggleSidebarBtn" aria-label="Réduire le menu">‹</button>
+    </div>
+
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Rechercher..." />
+    </div>
+
+    <nav class="nav-section">
+      <span class="section-title">Bibliothèque</span>
+      <ul class="nav-list">
+        <li><button class="nav-btn active" data-category="manga"><span class="icon">📖</span><span class="label">Manga</span></button></li>
+        <li><button class="nav-btn" data-category="anime"><span class="icon">🎬</span><span class="label">Anime</span></button></li>
+        <li><button class="nav-btn" data-category="webtoon"><span class="icon">📱</span><span class="label">Webtoon</span></button></li>
+        <li><button class="nav-btn" data-category="serie"><span class="icon">📺</span><span class="label">Série</span></button></li>
+        <li><button class="nav-btn" data-category="film"><span class="icon">📽️</span><span class="label">Film</span></button></li>
+        <li><button class="nav-btn" data-category="livres"><span class="icon">📚</span><span class="label">Livres</span></button></li>
+      </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="{{ url_for('main.search') }}" class="add-item-btn" style="text-decoration: none;">
+        <span class="icon">+</span>
+        <span class="label">Ajouter un titre</span>
+      </a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" style="margin-bottom: 1.5rem;">
+          {% for category, message in messages %}
+            <div class="status-info {{ 'success' if category == 'success' else ('warning' if category == 'danger' else '') }}" style="margin-bottom: 0.5rem;">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

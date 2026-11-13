@@ -1,0 +1,26 @@
+# Volumes et données persistées par Docker (contiennent des secrets et fichiers root)
+adguard/
+nginx-proxy-manager/
+vaultwarden/
+*/data/
+*/conf/
+*/letsencrypt/
+*.sqlite
+*.sqlite3
+*.db
+
+# Fichiers d'environnement et secrets
+.env
+*.env
+
+# Python / Node / Cache
+venv/
+.venv/
+__pycache__/
+node_modules/
+*.log
+
+# Home Assistant
+home-assistance/homeassistant/config/
+*.db
+*.log

@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  ryot:
+    image: ghcr.io/ignisda/ryot:latest
+    container_name: ryot
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Europe/Paris
+      - DATABASE_URL=sqlite:///data/ryot.db
+      # Attention aux deux underscores : SERVER__ADMIN_ACCESS_TOKEN
+      - SERVER__ADMIN_ACCESS_TOKEN=mon_token_super_securise_123
+    volumes:
+      - ./data:/data

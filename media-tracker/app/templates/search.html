@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Recherche — Myutaku Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+  <main class="main-content" style="width: 100%;">
+    <header class="content-header">
+      <a href="{{ url_for('main.index') }}" style="color: var(--text-muted); text-decoration: none; font-size: 0.9rem;">← Retour à la bibliothèque</a>
+      <h1>Rechercher un titre</h1>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="flash-messages" style="margin-bottom: 1.5rem;">
+          {% for category, message in messages %}
+            <div class="status-info {{ 'success' if category == 'success' else 'warning' }}" style="margin-bottom: 0.5rem;">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Formulaire de recherche -->
+    <form method="get" action="{{ url_for('main.search') }}" class="search-form" style="display: flex; gap: 0.75rem; margin-bottom: 1.5rem;">
+      <input
+        type="text"
+        name="q"
+        value="{{ query }}"
+        placeholder="Titre à rechercher..."
+        class="search-box"
+        style="flex-grow: 1; padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);"
+      >
+      <select name="type" style="padding: 0.7rem 1rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main);">
+        <option value="" {{ 'selected' if not active_filter }}>Toutes les sources</option>
+        <option value="anime" {{ 'selected' if active_filter == 'anime' }}>Anime</option>
+        <option value="manga" {{ 'selected' if active_filter == 'manga' }}>Manga</option>
+        <option value="webtoon" {{ 'selected' if active_filter == 'webtoon' }}>Webtoon</option>
+        <option value="serie" {{ 'selected' if active_filter == 'serie' }}>Série</option>
+        <option value="film" {{ 'selected' if active_filter == 'film' }}>Film</option>
+        <option value="livres" {{ 'selected' if active_filter == 'livres' }}>Livres</option>
+      </select>
+      <button type="submit" class="action-btn primary">Rechercher</button>
+    </form>
+
+    <!-- Résultats -->
+    {% if query and not results %}
+      <p style="color: var(--text-muted);">Aucun résultat trouvé pour « {{ query }} ».</p>
+    {% endif %}
+
+    <div class="media-grid">
+      {% for r in results %}
+        <div class="media-card">
+          <div class="cover-wrapper">
+            {% if r.cover_image %}
+              <img src="{{ r.cover_image }}" alt="{{ r.title }}" class="cover-img">
+            {% endif %}
+            <span class="card-badge">{{ r.type }}</span>
+          </div>
+          <div class="card-info">
+            <span class="card-title" title="{{ r.title }}">{{ r.title }}</span>
+            <span class="card-subtitle">Source : {{ r.source }}</span>
+
+            <form method="post" action="{{ url_for('main.import_media') }}">
+              <input type="hidden" name="title" value="{{ r.title }}">
+              <input type="hidden" name="type" value="{{ r.type }}">
+              <input type="hidden" name="cover_image" value="{{ r.cover_image }}">
+              <input type="hidden" name="external_id" value="{{ r.external_id }}">
+              <input type="hidden" name="total_units" value="{{ r.total_units }}">
+              <input type="hidden" name="status" value="{{ 'wishlist' if r.type in ['manga', 'webtoon'] else 'plan' }}">
+              <button type="submit" class="action-btn primary" style="width: 100%;">+ Ajouter à ma liste</button>
+            </form>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </main>
+
+</body>
+</html>

@@ -1,0 +1,16 @@
+- Network & Security:
+    - AdGuard Home:
+        icon: adguard-home.png
+        href: http://192.168.1.170:8088
+        container: adguardhome
+        widget:
+          type: adguard
+          url: http://192.168.1.170:8088
+          username: homelab
+          password: Couanon53.
+
+- Password Manager:
+    - Vaultwarden:
+        icon: bitwarden.png
+        href: http://192.168.1.170:8080     # L'adresse que tu utilises dans ton navigateur
+        container: vaultwarden              # Nom EXACT du conteneur Docker

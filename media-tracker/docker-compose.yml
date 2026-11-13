@@ -1,0 +1,12 @@
+services:
+  media-tracker:
+    build: .
+    container_name: media-tracker
+    restart: unless-stopped
+    ports:
+      - "3001:5000"
+    environment:
+      - TMDB_API_KEY=${TMDB_API_KEY}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-prod}
+    volumes:
+      - ./instance:/app/instance

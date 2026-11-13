@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Bibliothèque — Myutaku Tracker{% endblock %}
+
+{% block content %}
+  <header class="content-header">
+    <h1 id="currentCategoryTitle">Manga</h1>
+  </header>
+
+  <div class="filter-tabs" id="filterTabs">
+    <!-- Généré dynamiquement par script.js -->
+  </div>
+
+  <div class="media-grid" id="mediaGrid">
+    {% for media in medias %}
+      <div class="media-card" data-type="{{ media.type }}" data-status="{{ media.status }}">
+        <a href="{{ url_for('main.media_detail', media_id=media.id) }}" style="text-decoration:none; color:inherit;">
+        <div class="cover-wrapper">
+          {% if media.cover_image %}
+            <img src="{{ media.cover_image }}" alt="{{ media.title }}" class="cover-img">
+          {% endif %}
+          <span class="card-badge badge-{{ media.status }}">{{ media.status }}</span>
+        </div>
+        <div class="card-info">
+          <span class="card-title" title="{{ media.title }}">{{ media.title }}</span>
+
+          {% if media.total_units and media.total_units > 0 %}
+            <span class="card-subtitle">{{ media.current_unit }} / {{ media.total_units }}</span>
+          {% else %}
+            <span class="card-subtitle">{{ media.current_unit }} suivi(s)</span>
+          {% endif %}
+
+          <div class="tracker-control" data-media-id="{{ media.id }}">
+            <button type="button" class="btn-step" onclick="adjustUnit(this, -1)">−</button>
+            <span class="count-display"><strong class="val">{{ media.current_unit }}</strong></span>
+            <button type="button" class="btn-step" onclick="adjustUnit(this, 1)">+</button>
+          </div>
+
+          <select class="status-select" onchange="updateStatus(this)" data-media-id="{{ media.id }}">
+            {% set status_options = ['pal','owned','missing','wishlist'] if media.type in ['manga','livres'] else ['plan','watching','completed','dropped'] %}
+            {% for s in status_options %}
+              <option value="{{ s }}" {{ 'selected' if media.status == s }}>{{ s }}</option>
+            {% endfor %}
+          </select>
+
+          <form method="post" action="{{ url_for('main.delete', media_id=media.id) }}" onsubmit="return confirm('Supprimer ce titre ?');">
+            <button type="submit" class="action-btn">Supprimer</button>
+          </form>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endblock %}

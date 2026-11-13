@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}{{ media.title }} — Myutaku Tracker{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('main.index') }}" style="color: var(--text-muted); text-decoration:none; font-size:0.9rem;">← Retour</a>
+<h1 style="margin: 1rem 0;">{{ media.title }}</h1>
+
+{% if seasons %}
+<div style="margin-bottom: 1rem;">
+  <select onchange="window.location.href='{{ url_for('main.media_detail', media_id=media.id) }}?season=' + this.value"
+          style="padding:0.6rem 1rem; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-card); color:var(--text-main); font-weight:600;">
+    {% for s in seasons %}
+      <option value="{{ s.season_number }}" {{ 'selected' if s.season_number == selected_season }}>{{ s.name }} ({{ s.episode_count }})</option>
+    {% endfor %}
+  </select>
+</div>
+{% endif %}
+
+{% set total = media.total_units %}
+{% set percent = ((media.current_unit / total) * 100) | round(0) if total > 0 else 0 %}
+
+<div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 0.5rem;">
+  <strong>{{ media.current_unit }} / {{ total }}</strong>
+  <span>{{ percent }}%</span>
+</div>
+<div style="background: var(--bg-card); border-radius: 6px; height: 8px; overflow:hidden; margin-bottom: 1.5rem;">
+  <div style="background: var(--accent); height:100%; width: {{ percent }}%;"></div>
+</div>
+
+<div class="episode-list">
+  {% for ep in episodes %}
+    <div style="display:flex; gap:1rem; padding:0.75rem 0; border-bottom:1px solid var(--border-color); align-items:center;">
+      <div style="width:120px; aspect-ratio:16/9; background:#12141d; border-radius:6px; overflow:hidden; flex-shrink:0;">
+        {% if ep.thumbnail %}<img src="{{ ep.thumbnail }}" style="width:100%; height:100%; object-fit:cover;">{% endif %}
+      </div>
+      <div style="flex-grow:1;">
+        <strong>{{ 'Chapitre' if media.type in ['manga','webtoon'] else 'Episode' }} {{ '%02d' % ep.number }}{{ ' — ' + ep.title if ep.title }}</strong>
+        {% if ep.synopsis %}<p style="color: var(--text-muted); font-size:0.85rem; margin-top:0.2rem;">{{ ep.synopsis }}</p>{% endif %}
+      </div>
+      <button type="button" class="episode-check" data-media-id="{{ media.id }}" data-number="{{ ep.global_number }}"
+              style="width:28px;height:28px;border-radius:50%;border:1px solid var(--border-color); background: {{ 'var(--accent)' if ep.global_number <= media.current_unit else 'transparent' }}; color: {{ '#fff' if ep.global_number <= media.current_unit else 'var(--text-muted)' }}; cursor:pointer; flex-shrink:0;"
+              onclick="toggleEpisode(this)">✓</button>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
