@@ -10,7 +10,7 @@ import {
   Plus,
   Search,
 } from 'lucide-react';
-import { fetchMedia, createMedia, updateMedia, patchMedia, patchProgress, deleteMedia } from './api';
+import { fetchMedia, createMedia, updateMedia, patchMedia, patchProgress, deleteMedia, syncSeasons } from './api';
 import MediaCard from './components/MediaCard';
 import MediaModal from './components/MediaModal';
 import MediaDetailModal from './components/MediaDetailModal';
@@ -23,6 +23,9 @@ const NAV_ITEMS = [
   { id: 'manga', label: 'Mangas', icon: BookOpen },
   { id: 'webtoon', label: 'Webtoons', icon: Smartphone },
   { id: 'book', label: 'Livres', icon: Book },
+  { id: 'non_possede', label: 'Non possédé', color: 'bg-slate-700 hover:bg-slate-600' },
+  { id: 'a_completer', label: 'À compléter', color: 'bg-amber-600 hover:bg-amber-700' },
+  { id: 'termine', label: 'Terminé', color: 'bg-adobright hover:bg-blue-600' },
 ];
 
 const STATUS_FILTERS = {
@@ -75,8 +78,8 @@ export default function App() {
     try {
       const data = await fetchMedia({
         category,
-        status: !isCollectionTab ? statusFilter : '',
-        is_owned: isCollectionTab ? ownedFilter : '',
+        status: category === 'manga' ? ownedFilter : (!isCollectionTab ? statusFilter : ''),
+        is_owned: category === 'book' ? ownedFilter : '',
         is_read: isCollectionTab ? readFilter : '',
         is_wishlist: isCollectionTab ? wishlistFilter : '',
         q: search,
@@ -130,6 +133,12 @@ export default function App() {
     setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
     setSelectedItem((prev) => (prev && prev.id === id ? updated : prev));
   };
+
+  const handleSyncSeasons = async (id) => {
+  const updated = await syncSeasons(id);
+  setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
+  setSelectedItem((prev) => (prev && prev.id === id ? updated : prev));
+};
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-night text-slate-100">
@@ -219,9 +228,20 @@ export default function App() {
               onChange={(e) => setOwnedFilter(e.target.value)}
               className="bg-surface border border-borderdark rounded-full px-3.5 py-1.5 text-xs font-semibold text-slate-200 focus:outline-none focus:border-violetmain"
             >
-              <option value="">Possession : Tous</option>
-              <option value="true">Possédé</option>
-              <option value="false">Non possédé</option>
+              {category === 'manga' ? (
+                <>
+                  <option value="">Possession : Tous</option>
+                  <option value="a_completer">À compléter</option>
+                  <option value="termine">Terminé</option>
+                  <option value="non_possede">Non possédé</option>
+                </>
+              ) : (
+                <>
+                  <option value="">Possession : Tous</option>
+                  <option value="true">Possédé</option>
+                  <option value="false">Non possédé</option>
+                </>
+              )}
             </select>
 
             <select

@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor, Json
-from services import search_external
+from services import search_external, get_tmdb_series_seasons
 
 app = Flask(__name__)
 CORS(app)
@@ -117,6 +117,7 @@ def list_media():
 
 
 @app.route("/api/media", methods=["POST"])
+@app.route("/api/media", methods=["POST"])
 def create_media():
     data = request.get_json() or {}
     if not data.get("title") or not data.get("category"):
@@ -129,14 +130,49 @@ def create_media():
 
     status = data.get("status") or None
 
+    if data["category"] == "manga" and not status:
+        total_vols = clean_int(data.get("total_volumes"))
+        if not volumes:
+            status = "non_possede"
+        elif total_vols and len(volumes) >= total_vols:
+            status = "termine"
+        else:
+            status = "a_completer"
+            
+    total_progress = clean_int(data.get("total_progress"))
+    seasons_data = data.get("seasons_data") or []
+
+    # Import automatique des saisons/épisodes pour les séries TMDB
+    if (
+        data["category"] == "series"
+        and data.get("external_source") == "tmdb"
+        and data.get("external_id")
+        and not seasons_data
+    ):
+        try:
+            fetched_seasons, fetched_total = get_tmdb_series_seasons(data["external_id"])
+            if fetched_seasons:
+                seasons_data = fetched_seasons
+                total_progress = fetched_total
+        except Exception as e:
+            print(f"Erreur récupération saisons TMDB: {e}")
+
+    # Initialisation de la saison 1 pour les animés si le nombre d'épisodes est connu
+    if data["category"] == "anime" and total_progress and not seasons_data:
+        seasons_data = [{
+            "season": 1,
+            "total_episodes": total_progress,
+            "watched": [],
+        }]
+
     sql = """
         INSERT INTO media_items (
             category, title, original_title, cover_url, synopsis, release_year,
             external_id, external_source, status, is_owned, is_wishlist, is_read,
             current_progress, total_progress, current_season, owned_volumes,
-            total_volumes, rating, notes
+            total_volumes, rating, notes, seasons_data
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING *;
     """
     values = (
@@ -153,12 +189,13 @@ def create_media():
         bool(data.get("is_wishlist", False)),
         bool(data.get("is_read", False)),
         clean_int(data.get("current_progress"), 0),
-        clean_int(data.get("total_progress")),
+        total_progress,
         clean_int(data.get("current_season"), 1),
         volumes,
         clean_int(data.get("total_volumes")),
         clean_float(data.get("rating")),
         data.get("notes"),
+        Json(seasons_data),
     )
 
     with get_db() as conn:
@@ -346,6 +383,52 @@ def patch_media(item_id):
 
     if not updated:
         return jsonify({"error": "Introuvable"}), 404
+    return jsonify(serialize_row(updated))
+
+@app.route("/api/media/<int:item_id>/sync-seasons", methods=["POST"])
+def sync_seasons(item_id):
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT * FROM media_items WHERE id = %s;", (item_id,))
+            item = cur.fetchone()
+            if not item:
+                return jsonify({"error": "Introuvable"}), 404
+
+            if item["category"] != "series" or item["external_source"] != "tmdb" or not item["external_id"]:
+                return jsonify({"error": "Synchronisation disponible uniquement pour les séries TMDB"}), 400
+
+            fetched_seasons, fetched_total = get_tmdb_series_seasons(item["external_id"])
+            if not fetched_seasons:
+                return jsonify({"error": "Aucune saison trouvée sur TMDB"}), 404
+
+            # Conserve les épisodes déjà cochés par saison
+            existing_map = {
+                s["season"]: s.get("watched", [])
+                for s in (item.get("seasons_data") or [])
+            }
+            merged = []
+            for s in fetched_seasons:
+                old_watched = [e for e in existing_map.get(s["season"], []) if e <= s["total_episodes"]]
+                merged.append({
+                    "season": s["season"],
+                    "total_episodes": s["total_episodes"],
+                    "watched": sorted(old_watched),
+                })
+
+            total_watched = sum(len(s["watched"]) for s in merged)
+
+            cur.execute(
+                """
+                UPDATE media_items
+                SET seasons_data = %s, current_progress = %s, total_progress = %s
+                WHERE id = %s
+                RETURNING *;
+                """,
+                (Json(merged), total_watched, fetched_total, item_id),
+            )
+            updated = cur.fetchone()
+            conn.commit()
+
     return jsonify(serialize_row(updated))
 
 if __name__ == "__main__":

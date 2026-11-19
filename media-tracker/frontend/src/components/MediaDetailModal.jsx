@@ -12,6 +12,7 @@ import {
   Library,
   Heart,
   Trash2,
+  RefreshCw,
 } from 'lucide-react';
 
 const STATUS_BY_CATEGORY = {
@@ -39,12 +40,25 @@ const STATUS_BY_CATEGORY = {
   ],
 };
 
-export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpdate }) {
+const MANGA_POSSESSION_STATUSES = [
+  { id: 'non_possede', label: 'Non possédé', color: 'bg-slate-700 hover:bg-slate-600' },
+  { id: 'a_completer', label: 'À compléter', color: 'bg-amber-600 hover:bg-amber-700' },
+  { id: 'termine', label: 'Terminé', color: 'bg-adobright hover:bg-blue-600' },
+];
+
+export default function MediaDetailModal({
+  item,
+  onClose,
+  onOpenEdit,
+  onQuickUpdate,
+  onSyncSeasons,
+}) {
   const [statusMenuOpen, setStatusMenuOpen] = useState(false);
   const [activeSeason, setActiveSeason] = useState(1);
   const [addingSeason, setAddingSeason] = useState(false);
   const [newSeasonEps, setNewSeasonEps] = useState(12);
   const [volRangeEnd, setVolRangeEnd] = useState('');
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     setStatusMenuOpen(false);
@@ -65,7 +79,7 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
     statusList.find((s) => s.id === item.status) ||
     statusList[0] || { label: 'Statut', color: 'bg-violetmain' };
 
-  // Initialise au moins la Saison 1 si aucune saison n'est enregistrée
+  // Saisons & épisodes (Animés / Séries)
   const seasons =
     item.seasons_data && item.seasons_data.length > 0
       ? item.seasons_data
@@ -140,20 +154,33 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
     saveSeasons(next);
   };
 
-  // Mangas : tomes possédés
+  // Mangas : tomes possédés & statut de possession
   const ownedVolumes = item.owned_volumes || [];
-  const maxVolumes = Math.max(
-    Number(item.total_volumes) || 0,
-    ...(ownedVolumes.length ? ownedVolumes : [0]),
-    12
-  );
+  const maxVolumes = item.total_volumes
+    ? Math.max(Number(item.total_volumes), ...(ownedVolumes.length ? ownedVolumes : [0]))
+    : Math.max(...(ownedVolumes.length ? ownedVolumes : [0]), 12);
+
+  const getAutoMangaStatus = (vols, totalVols) => {
+    if (!vols || vols.length === 0) return 'non_possede';
+    if (totalVols && vols.length >= Number(totalVols)) return 'termine';
+    return 'a_completer';
+  };
+
+  const currentMangaPossession =
+    MANGA_POSSESSION_STATUSES.find(
+      (s) => s.id === (item.status || getAutoMangaStatus(ownedVolumes, item.total_volumes))
+    ) || MANGA_POSSESSION_STATUSES[0];
 
   const toggleVolume = (volNum) => {
     const exists = ownedVolumes.includes(volNum);
     const next = exists
       ? ownedVolumes.filter((v) => v !== volNum)
       : [...ownedVolumes, volNum].sort((a, b) => a - b);
-    onQuickUpdate(item.id, { owned_volumes: next, is_owned: next.length > 0 });
+    onQuickUpdate(item.id, {
+      owned_volumes: next,
+      is_owned: next.length > 0,
+      status: getAutoMangaStatus(next, item.total_volumes),
+    });
   };
 
   const applyVolumeRange = (e) => {
@@ -167,19 +194,28 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
       owned_volumes: merged,
       is_owned: merged.length > 0,
       total_volumes: nextTotal,
+      status: getAutoMangaStatus(merged, nextTotal),
     });
     setVolRangeEnd('');
   };
 
   const clearVolumes = () => {
-    onQuickUpdate(item.id, { owned_volumes: [], is_owned: false });
+    onQuickUpdate(item.id, {
+      owned_volumes: [],
+      is_owned: false,
+      status: 'non_possede',
+    });
   };
 
   const updateTotalVolumes = (val) => {
     const num = Math.max(1, Math.min(300, parseInt(val, 10) || 0));
     if (!num) return;
-    onQuickUpdate(item.id, { total_volumes: num });
+    onQuickUpdate(item.id, {
+      total_volumes: num,
+      status: getAutoMangaStatus(ownedVolumes, num),
+    });
   };
+
   const updateChapterProgress = (newVal) => {
     const val = Math.max(0, parseInt(newVal, 10) || 0);
     onQuickUpdate(item.id, { current_progress: val });
@@ -241,7 +277,7 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
               )}
             </div>
 
-            {/* Bouton déroulant de statut (style Myutaku) pour Animé / Film / Série / Webtoon */}
+            {/* Bouton déroulant de statut pour Animé / Film / Série / Webtoon */}
             {!isCollection && (
               <div className="relative">
                 <button
@@ -297,6 +333,53 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                   </button>
                 )}
 
+                {item.category === 'manga' && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setStatusMenuOpen((o) => !o)}
+                      className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-full text-xs font-bold text-white shadow transition ${currentMangaPossession.color}`}
+                    >
+                      <Library className="w-4 h-4" />
+                      <span>
+                        {currentMangaPossession.label}
+                        {ownedVolumes.length > 0
+                          ? ` (${ownedVolumes.length}${item.total_volumes ? `/${item.total_volumes}` : ''})`
+                          : ''}
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${statusMenuOpen ? 'rotate-180' : ''}`}
+                      />
+                    </button>
+
+                    {statusMenuOpen && (
+                      <div className="absolute left-0 right-0 mt-2 bg-surface border border-borderdark rounded-xl shadow-2xl overflow-hidden z-20">
+                        {MANGA_POSSESSION_STATUSES.map((st) => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => {
+                              onQuickUpdate(item.id, {
+                                status: st.id,
+                                is_owned: st.id !== 'non_possede',
+                              });
+                              setStatusMenuOpen(false);
+                            }}
+                            className={`w-full flex items-center justify-between px-4 py-2.5 text-xs text-left hover:bg-night transition ${
+                              currentMangaPossession.id === st.id
+                                ? 'text-violetmain font-bold'
+                                : 'text-slate-200'
+                            }`}
+                          >
+                            {st.label}
+                            {currentMangaPossession.id === st.id && <Check className="w-3.5 h-3.5" />}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => onQuickUpdate(item.id, { is_read: !item.is_read })}
@@ -327,15 +410,17 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
 
             {/* Infos rapides */}
             <div className="text-xs text-slate-400 space-y-1 pt-2 border-t border-borderdark">
-              {item.release_year && <p>Année : <span className="text-slate-200">{item.release_year}</span></p>}
+              {item.release_year && (
+                <p>
+                  Année : <span className="text-slate-200">{item.release_year}</span>
+                </p>
+              )}
               {item.original_title && (
                 <p className="truncate" title={item.original_title}>
                   Original : <span className="text-slate-200">{item.original_title}</span>
                 </p>
               )}
-              {item.notes && (
-                <p className="pt-1 text-slate-300 italic">"{item.notes}"</p>
-              )}
+              {item.notes && <p className="pt-1 text-slate-300 italic">"{item.notes}"</p>}
             </div>
           </div>
 
@@ -377,6 +462,26 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                     >
                       <Plus className="w-3.5 h-3.5" /> Saison
                     </button>
+
+                    {isEpisodic && onSyncSeasons && (
+                      <button
+                        type="button"
+                        disabled={syncing}
+                        onClick={async () => {
+                          setSyncing(true);
+                          try {
+                            await onSyncSeasons(item.id);
+                          } finally {
+                            setSyncing(false);
+                          }
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-surface border border-borderdark hover:border-violetmain text-slate-200 transition disabled:opacity-50"
+                        title="Importer automatiquement toutes les saisons depuis TMDB"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                        {syncing ? 'Synchro...' : 'Sync TMDB'}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -516,16 +621,25 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                   {item.total_progress > 0 && (
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px] text-slate-400">
-                        <span>{item.current_progress || 0} / {item.total_progress} chapitres</span>
                         <span>
-                          {Math.min(100, Math.round(((item.current_progress || 0) / item.total_progress) * 100))}%
+                          {item.current_progress || 0} / {item.total_progress} chapitres
+                        </span>
+                        <span>
+                          {Math.min(
+                            100,
+                            Math.round(((item.current_progress || 0) / item.total_progress) * 100)
+                          )}
+                          %
                         </span>
                       </div>
                       <div className="w-full h-2 bg-surface rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-adobright to-violetmain rounded-full transition-all"
                           style={{
-                            width: `${Math.min(100, Math.round(((item.current_progress || 0) / item.total_progress) * 100))}%`,
+                            width: `${Math.min(
+                              100,
+                              Math.round(((item.current_progress || 0) / item.total_progress) * 100)
+                            )}%`,
                           }}
                         />
                       </div>
@@ -550,6 +664,7 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                       <div className="flex items-center gap-1.5 text-xs text-slate-400">
                         <span>Total :</span>
                         <input
+                          key={`${item.id}-${item.total_volumes ?? ''}`}
                           type="number"
                           min="1"
                           max="300"
@@ -596,23 +711,25 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                   </div>
 
                   <div className="grid grid-cols-5 sm:grid-cols-8 lg:grid-cols-10 gap-1.5 max-h-56 overflow-y-auto pr-1">
-                    {Array.from({ length: Math.min(maxVolumes, 300) }, (_, i) => i + 1).map((num) => {
-                      const owned = ownedVolumes.includes(num);
-                      return (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => toggleVolume(num)}
-                          className={`py-2 rounded-lg text-xs font-bold border transition ${
-                            owned
-                              ? 'bg-adobright border-adobright text-white shadow'
-                              : 'bg-surface border-borderdark text-slate-400 hover:border-violetmain'
-                          }`}
-                        >
-                          T.{num}
-                        </button>
-                      );
-                    })}
+                    {Array.from({ length: Math.min(maxVolumes, 300) }, (_, i) => i + 1).map(
+                      (num) => {
+                        const owned = ownedVolumes.includes(num);
+                        return (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => toggleVolume(num)}
+                            className={`py-2 rounded-lg text-xs font-bold border transition ${
+                              owned
+                                ? 'bg-adobright border-adobright text-white shadow'
+                                : 'bg-surface border-borderdark text-slate-400 hover:border-violetmain'
+                            }`}
+                          >
+                            T.{num}
+                          </button>
+                        );
+                      }
+                    )}
                   </div>
                 </div>
               </div>
@@ -658,7 +775,10 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
                     <div
                       className="h-full bg-gradient-to-r from-adobright to-violetmain rounded-full transition-all"
                       style={{
-                        width: `${Math.min(100, Math.round(((item.current_progress || 0) / item.total_progress) * 100))}%`,
+                        width: `${Math.min(
+                          100,
+                          Math.round(((item.current_progress || 0) / item.total_progress) * 100)
+                        )}%`,
                       }}
                     />
                   </div>
@@ -670,12 +790,14 @@ export default function MediaDetailModal({ item, onClose, onOpenEdit, onQuickUpd
             {(item.category === 'movie' || item.category === 'book') && (
               <div className="bg-night/60 border border-borderdark rounded-xl p-5 space-y-3">
                 <h3 className="text-sm font-bold text-white">Détails</h3>
-                <p className="text-sm text-slate-300 leading-relaxed">
-                  {item.synopsis || 'Aucun synopsis renseigné. Clique sur l’engrenage en haut à gauche pour en ajouter un.'}
+                <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+                  {item.synopsis ||
+                    "Aucun synopsis renseigné. Clique sur l'engrenage en haut à gauche pour en ajouter un."}
                 </p>
                 {item.category === 'book' && item.total_progress && (
                   <p className="text-xs text-slate-400">
-                    Nombre de pages : <span className="text-white font-semibold">{item.total_progress}</span>
+                    Nombre de pages :{' '}
+                    <span className="text-white font-semibold">{item.total_progress}</span>
                   </p>
                 )}
               </div>

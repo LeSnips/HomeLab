@@ -134,3 +134,29 @@ def search_external(category, query):
     if category == "book":
         return search_google_books(query)
     return []
+
+
+def get_tmdb_series_seasons(tv_id):
+    if not TMDB_API_KEY or TMDB_API_KEY == "ta_cle_tmdb_ici" or not tv_id:
+        return [], None
+
+    url = f"https://api.themoviedb.org/3/tv/{tv_id}"
+    params = {"api_key": TMDB_API_KEY, "language": "fr-FR"}
+    resp = requests.get(url, params=params, timeout=10)
+    resp.raise_for_status()
+    data = resp.json()
+
+    seasons = []
+    for s in data.get("seasons", []):
+        season_num = s.get("season_number", 0)
+        ep_count = s.get("episode_count", 0)
+        # On ignore la saison 0 ("Épisodes spéciaux") et les saisons vides
+        if season_num > 0 and ep_count > 0:
+            seasons.append({
+                "season": season_num,
+                "total_episodes": ep_count,
+                "watched": [],
+            })
+
+    total_eps = sum(s["total_episodes"] for s in seasons) if seasons else None
+    return seasons, total_eps

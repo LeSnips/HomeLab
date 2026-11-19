@@ -65,3 +65,9 @@ export async function patchMedia(id, payload) {
   if (!res.ok) throw new Error('Erreur mise à jour rapide');
   return res.json();
 }
+
+export async function syncSeasons(id) {
+  const res = await fetch(`${BASE}/media/${id}/sync-seasons`, { method: 'POST' });
+  if (!res.ok) throw new Error('Erreur synchronisation saisons');
+  return res.json();
+}
